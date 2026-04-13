@@ -11,6 +11,7 @@ define('DB_PASS', 'IHR_DATENBANKPASSWORT');    // Datenbankpasswort
 define('APP_NAME', 'Zeiterfassung Grüne Kombüse');
 define('TIMEZONE',  'Europe/Berlin');
 define('APP_EMAIL', 'info@gruenekombuese.de');
+define('SMTP_PASS', 'IHR_SMTP_PASSWORT');       // Passwort fuer info@gruenekombuese.de (IONOS)
 define('BASE_URL',  'https://gruenekombuese.de/zeiterfassung'); // ohne abschließenden Slash
 
 date_default_timezone_set(TIMEZONE);
