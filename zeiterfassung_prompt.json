@@ -1,0 +1,222 @@
+{
+  "project": "Zeiterfassung Grüne Kombüse",
+  "description": "Baue eine vollständige Zeiterfassungs-Web-App für ein Restaurantteam. Die App heißt 'Zeiterfassung Grüne Kombüse' und wird auf einem IONOS Shared-Hosting-Server deployed (PHP 7.4, MySQL, kein Composer, kein Framework). Alle Dateien müssen sofort einsatzbereit sein – kein Build-Prozess, kein npm.",
+
+  "tech_stack": {
+    "backend": "PHP 7.4 (plain, kein Framework)",
+    "database": "MySQL (via PDO)",
+    "frontend": "Vanilla HTML + CSS + JavaScript (kein React, kein Build-Tool)",
+    "hosting": "IONOS Shared Hosting – php_value in .htaccess nicht unterstützt"
+  },
+
+  "roles": {
+    "admin": {
+      "beschreibung": "Restaurantinhaber (Josef). Kann alles.",
+      "rechte": [
+        "Alle Mitarbeiter-Schichten sehen",
+        "Monatsübersicht aller Mitarbeiter anzeigen",
+        "CSV-Export aller Schichten",
+        "Mitarbeiter anlegen, deaktivieren, Passwort zurücksetzen",
+        "Eigene Schichten eintragen",
+        "Schichteinträge aller Mitarbeiter korrigieren (mit Protokoll)"
+      ]
+    },
+    "buchhaltung": {
+      "beschreibung": "Buchhalterin Sigrid Weber. Nur lesen und exportieren.",
+      "rechte": [
+        "Alle Mitarbeiter-Schichten sehen",
+        "Monatsübersicht aller Mitarbeiter anzeigen",
+        "CSV-Export aller Schichten",
+        "Keine Schichten eintragen oder ändern",
+        "Keine Mitarbeiterverwaltung"
+      ]
+    },
+    "mitarbeiter": {
+      "beschreibung": "Restaurantmitarbeiter. Sieht nur eigene Daten.",
+      "rechte": [
+        "Eigene Schichten eintragen",
+        "Eigene Schichten der letzten 60 Tage sehen",
+        "Eigene Monatssumme sehen",
+        "Eigene Einträge korrigieren (innerhalb von 7 Tagen, mit Protokoll)"
+      ]
+    }
+  },
+
+  "database_schema": {
+    "tabellen": [
+      {
+        "name": "users",
+        "felder": [
+          "id INT AUTO_INCREMENT PRIMARY KEY",
+          "name VARCHAR(100) NOT NULL",
+          "email VARCHAR(150) UNIQUE NOT NULL",
+          "password_hash VARCHAR(255) NOT NULL",
+          "role ENUM('admin','buchhaltung','mitarbeiter') NOT NULL DEFAULT 'mitarbeiter'",
+          "aktiv TINYINT(1) NOT NULL DEFAULT 1",
+          "created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
+        ]
+      },
+      {
+        "name": "shifts",
+        "felder": [
+          "id INT AUTO_INCREMENT PRIMARY KEY",
+          "user_id INT NOT NULL REFERENCES users(id)",
+          "datum DATE NOT NULL",
+          "beginn TIME NOT NULL",
+          "ende TIME NOT NULL",
+          "pause_minuten INT NOT NULL DEFAULT 0",
+          "notiz VARCHAR(500)",
+          "erstellt_am DATETIME DEFAULT CURRENT_TIMESTAMP",
+          "geaendert_am DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+          "geaendert_von INT REFERENCES users(id)"
+        ]
+      },
+      {
+        "name": "shift_log",
+        "felder": [
+          "id INT AUTO_INCREMENT PRIMARY KEY",
+          "shift_id INT NOT NULL REFERENCES shifts(id)",
+          "geaendert_von INT NOT NULL REFERENCES users(id)",
+          "aktion ENUM('erstellt','geaendert','geloescht') NOT NULL",
+          "alte_werte JSON",
+          "neue_werte JSON",
+          "zeitstempel DATETIME DEFAULT CURRENT_TIMESTAMP"
+        ]
+      }
+    ]
+  },
+
+  "file_structure": {
+    "root": [
+      "index.php (Login-Seite)",
+      "logout.php",
+      "dashboard.php (Weiterleitung je nach Rolle)",
+      "schicht_eintragen.php (Mitarbeiter-View)",
+      "meine_schichten.php (Mitarbeiter-View)",
+      "admin_uebersicht.php (Admin + Buchhaltung)",
+      "admin_mitarbeiter.php (nur Admin)",
+      "admin_export.php (CSV-Export, Admin + Buchhaltung)",
+      "api.php (einfache PHP-API für AJAX-Calls)",
+      "install.php (einmalig ausführen für DB-Setup + Admin-Anlage, danach löschen)"
+    ],
+    "includes": [
+      "includes/db.php (PDO-Verbindung)",
+      "includes/auth.php (Session-Handling, Rollenprüfung)",
+      "includes/functions.php (Hilfsfunktionen)"
+    ],
+    "assets": [
+      "assets/style.css",
+      "assets/main.js"
+    ]
+  },
+
+  "features": {
+    "login": {
+      "beschreibung": "Einfache Login-Seite mit Email + Passwort",
+      "details": [
+        "Session-basierte Authentifizierung",
+        "Passwort-Hashing mit password_hash() / password_verify()",
+        "Nach Login Weiterleitung je nach Rolle",
+        "Kein 'Passwort vergessen' – Admin setzt Passwörter manuell zurück"
+      ]
+    },
+    "schicht_eintragen": {
+      "beschreibung": "Formular für Mitarbeiter zum Eintragen einer Schicht",
+      "felder": [
+        "Datum (default: heute)",
+        "Beginn (Uhrzeit)",
+        "Ende (Uhrzeit)",
+        "Pause in Minuten (optional, default: 0)",
+        "Notiz (optional)"
+      ],
+      "validierung": [
+        "Ende muss nach Beginn liegen",
+        "Datum darf nicht in der Zukunft liegen",
+        "Datum darf nicht älter als 60 Tage sein",
+        "Netto-Arbeitszeit wird direkt angezeigt (Ende - Beginn - Pause)"
+      ]
+    },
+    "meine_schichten": {
+      "beschreibung": "Mitarbeiter sieht eigene Einträge",
+      "details": [
+        "Tabelle der letzten 60 Tage",
+        "Monatssumme in Stunden angezeigt",
+        "Editieren möglich innerhalb von 7 Tagen nach Erstellung",
+        "Löschen nicht möglich – nur Admin kann löschen"
+      ]
+    },
+    "admin_uebersicht": {
+      "beschreibung": "Übersicht für Admin und Buchhaltung",
+      "details": [
+        "Monatsfilter (Standard: aktueller Monat)",
+        "Tabelle aller Mitarbeiter mit Gesamtstunden des Monats",
+        "Klick auf Mitarbeiter zeigt dessen Schichten im Detail",
+        "Summe Gesamtstunden aller Mitarbeiter sichtbar"
+      ]
+    },
+    "csv_export": {
+      "beschreibung": "CSV-Export für die Buchhalterin",
+      "format": [
+        "Spalten: Mitarbeiter, Datum, Beginn, Ende, Pause (Min), Netto-Stunden, Notiz",
+        "Filter nach Monat und Mitarbeiter (optional)",
+        "UTF-8 mit BOM für korrekte Excel-Darstellung",
+        "Dateiname: zeiterfassung_YYYY-MM.csv"
+      ]
+    },
+    "admin_mitarbeiter": {
+      "beschreibung": "Mitarbeiterverwaltung (nur Admin)",
+      "details": [
+        "Liste aller Mitarbeiter (aktiv/inaktiv)",
+        "Neuen Mitarbeiter anlegen (Name, Email, Passwort, Rolle)",
+        "Mitarbeiter deaktivieren (nicht löschen – Datenpersistenz)",
+        "Passwort zurücksetzen"
+      ]
+    },
+    "install_php": {
+      "beschreibung": "Einmaliges Setup-Script",
+      "details": [
+        "Legt alle Tabellen an",
+        "Legt einen ersten Admin-Account an (Email + Passwort konfigurierbar im Script-Header)",
+        "Gibt Hinweis aus: 'install.php nach erfolgreicher Ausführung löschen'",
+        "Enthält Datenbankverbindungs-Konfiguration als Konstanten oben im File"
+      ]
+    }
+  },
+
+  "design": {
+    "stil": "Schlicht, professionell, mobilfreundlich. Kein Framework wie Bootstrap – reines CSS.",
+    "farben": "Grün als Akzentfarbe (passend zu Grüne Kombüse), weißer Hintergrund, dunkle Schrift",
+    "schriftart": "System-Font-Stack (keine Google Fonts – keine externen Abhängigkeiten)",
+    "navigation": "Einfache Top-Navigation mit Logout-Button und Rollenbeschriftung",
+    "mobile": "Responsive mit CSS Flexbox/Grid, keine Media-Query-Bibliothek"
+  },
+
+  "security": {
+    "anforderungen": [
+      "Alle Datenbankabfragen mit PDO Prepared Statements",
+      "Session-Prüfung auf jeder Seite (auth.php includieren)",
+      "Rollenprüfung serverseitig (nicht nur clientseitig)",
+      "CSRF-Schutz für alle POST-Formulare (einfaches Token im Session)",
+      "htmlspecialchars() für alle Ausgaben",
+      "Mitarbeiter kann keine Daten anderer Mitarbeiter abrufen – SQL-Abfragen immer mit WHERE user_id = $_SESSION['user_id'] einschränken"
+    ]
+  },
+
+  "konfiguration": {
+    "beschreibung": "Alle Konfigurationswerte in einer zentralen config.php",
+    "werte": [
+      "DB_HOST",
+      "DB_NAME", 
+      "DB_USER",
+      "DB_PASS",
+      "APP_NAME (= 'Zeiterfassung Grüne Kombüse')",
+      "TIMEZONE (= 'Europe/Berlin')"
+    ]
+  },
+
+  "lieferung": {
+    "format": "Alle Dateien vollständig und lauffähig. Kein Platzhalter-Code.",
+    "readme": "readme.txt mit Schritt-für-Schritt-Installationsanleitung auf Deutsch: FTP-Upload, config.php anpassen, install.php aufrufen, install.php löschen.",
+    "hinweis": "Code muss auf PHP 7.4 ohne Composer laufen. Keine externen Libraries außer was PHP mitliefert."
+  }
+}
