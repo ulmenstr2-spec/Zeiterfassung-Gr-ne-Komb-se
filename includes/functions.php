@@ -50,11 +50,10 @@ function logShiftChange(
     ?array $alteWerte,
     ?array $neueWerte
 ): void {
-    $stmt = $pdo->prepare(
+    $pdo->prepare(
         'INSERT INTO shift_log (shift_id, geaendert_von, aktion, alte_werte, neue_werte)
          VALUES (?, ?, ?, ?, ?)'
-    );
-    $stmt->execute([
+    )->execute([
         $shiftId,
         $geaendertVon,
         $aktion,
@@ -64,186 +63,65 @@ function logShiftChange(
 }
 
 /**
- * Sendet eine Passwort-Reset-E-Mail via SMTP (oder PHP mail() als Fallback).
+ * Sendet eine Passwort-Reset-E-Mail ueber Brevo API.
  */
 function sendPasswordResetEmail(string $toEmail, string $toName, string $token): bool
 {
     $resetUrl = BASE_URL . '/passwort_reset.php?token=' . urlencode($token);
+    $subject  = 'Passwort zuruecksetzen - ' . APP_NAME;
+    $body     = 'Hallo ' . $toName . "\r\n\r\n"
+              . "Du hast eine Passwort-Zuruecksetzung angefordert.\r\n\r\n"
+              . "Link:\r\n" . $resetUrl . "\r\n\r\n"
+              . "Dieser Link ist eine Stunde gueltig.\r\n\r\n"
+              . "Falls du keine Zuruecksetzung angefordert hast,\r\n"
+              . "ignoriere diese E-Mail einfach.\r\n\r\n"
+              . "Viele Gruesse\r\n" . APP_NAME;
 
-    $subject = 'Passwort zuruecksetzen - ' . APP_NAME;
-
-    $body  = 'Hallo ' . $toName . "\r\n\r\n";
-    $body .= "Sie haben eine Passwort-Zuruecksetzung angefordert.\r\n\r\n";
-    $body .= "Link:\r\n";
-    $body .= $resetUrl . "\r\n\r\n";
-    $body .= "Dieser Link ist eine Stunde gueltig.\r\n\r\n";
-    $body .= "Falls Sie keine Zuruecksetzung angefordert haben,\r\n";
-    $body .= "ignorieren Sie diese E-Mail einfach.\r\n\r\n";
-    $body .= "Viele Gruesse\r\n";
-    $body .= APP_NAME;
-
-    // SMTP bevorzugen, falls Passwort hinterlegt
-    if (defined('SMTP_PASS') && SMTP_PASS !== '' && SMTP_PASS !== 'IHR_SMTP_PASSWORT') {
-        $ok = smtpSend($toEmail, $toName, $subject, $body);
-        if ($ok) { return true; }
-        error_log('sendPasswordResetEmail: SMTP fehlgeschlagen, versuche mail()');
-    }
-
-    // Fallback: PHP mail()
-    $headers  = 'From: ' . APP_NAME . ' <' . APP_EMAIL . ">\r\n";
-    $headers .= 'Reply-To: ' . APP_EMAIL . "\r\n";
-    $headers .= "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $headers .= "Content-Transfer-Encoding: 8bit\r\n";
-
-    $sent = @mail($toEmail, $subject, $body, $headers, '-f ' . APP_EMAIL);
-    if (!$sent) {
-        error_log('sendPasswordResetEmail: mail() fehlgeschlagen');
-    }
-    return $sent;
+    return brevoSend($toEmail, $toName, $subject, $body);
 }
 
 /**
- * Sendet eine E-Mail via SMTP mit AUTH LOGIN.
- * Versucht zuerst Port 465 (SSL), dann Port 587 (STARTTLS).
+ * Sendet eine E-Mail ueber die Brevo-API (ehemals Sendinblue).
+ * Benoetigt: define('BREVO_API_KEY', 'xkeysib-...') in config.php
  */
-function smtpSend(string $toEmail, string $toName, string $subject, string $body): bool
+function brevoSend(string $toEmail, string $toName, string $subject, string $body): bool
 {
-    $smtpHost = 'smtp.ionos.de';
-    $smtpUser = APP_EMAIL;
-    $smtpPass = defined('SMTP_PASS') ? SMTP_PASS : '';
+    if (!defined('BREVO_API_KEY') || BREVO_API_KEY === '' || BREVO_API_KEY === 'xkeysib-DEIN-KEY-HIER') {
+        error_log('brevoSend: BREVO_API_KEY nicht gesetzt');
+        return false;
+    }
 
-    $sslCtx = stream_context_create([
-        'ssl' => [
-            'verify_peer'       => false,
-            'verify_peer_name'  => false,
-            'allow_self_signed' => true,
+    $payload = json_encode([
+        'sender'      => ['name' => APP_NAME, 'email' => APP_EMAIL],
+        'to'          => [['email' => $toEmail, 'name'  => $toName]],
+        'subject'     => $subject,
+        'textContent' => $body,
+    ]);
+
+    $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_HTTPHEADER     => [
+            'Accept: application/json',
+            'Content-Type: application/json',
+            'api-key: ' . BREVO_API_KEY,
         ],
     ]);
 
-    // 1. Versuch: Port 465 mit direktem SSL
-    $sock = @stream_socket_client(
-        'ssl://' . $smtpHost . ':465',
-        $errno, $errstr, 20,
-        STREAM_CLIENT_CONNECT,
-        $sslCtx
-    );
-    $starttls = false;
+    $result   = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    curl_close($ch);
 
-    if (!$sock) {
-        error_log('SMTP 465 fehlgeschlagen (' . $errno . ': ' . $errstr . '), versuche 587');
-
-        // 2. Versuch: Port 587 mit STARTTLS
-        $sock = @stream_socket_client(
-            'tcp://' . $smtpHost . ':587',
-            $errno, $errstr, 20
-        );
-        if (!$sock) {
-            error_log('SMTP 587 fehlgeschlagen (' . $errno . ': ' . $errstr . ')');
-            return false;
-        }
-        $starttls = true;
-    }
-
-    stream_set_timeout($sock, 15);
-
-    // Liest eine vollstaendige SMTP-Antwort (auch mehrzeilig)
-    $read = function () use ($sock): string {
-        $out = '';
-        while (!feof($sock)) {
-            $line = fgets($sock, 512);
-            if ($line === false) { break; }
-            $out .= $line;
-            if (strlen($line) >= 4 && $line[3] === ' ') { break; }
-        }
-        return $out;
-    };
-
-    $write = function (string $cmd) use ($sock): void {
-        fwrite($sock, $cmd . "\r\n");
-    };
-
-    // Begruessing
-    $r = $read();
-    if (substr($r, 0, 3) !== '220') {
-        error_log('SMTP: schlechte Begruessung: ' . trim($r));
-        fclose($sock);
+    if ($curlErr) {
+        error_log('brevoSend curl Fehler: ' . $curlErr);
         return false;
     }
-
-    $write('EHLO gruenekombuese.de');
-    $read();
-
-    if ($starttls) {
-        $write('STARTTLS');
-        $r = $read();
-        if (substr($r, 0, 3) !== '220') {
-            error_log('SMTP: STARTTLS abgelehnt: ' . trim($r));
-            fclose($sock);
-            return false;
-        }
-        stream_context_set_option($sock, 'ssl', 'verify_peer',      false);
-        stream_context_set_option($sock, 'ssl', 'verify_peer_name', false);
-        stream_context_set_option($sock, 'ssl', 'allow_self_signed', true);
-        if (!@stream_socket_enable_crypto($sock, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
-            error_log('SMTP: TLS-Aushandlung fehlgeschlagen');
-            fclose($sock);
-            return false;
-        }
-        $write('EHLO gruenekombuese.de');
-        $read();
-    }
-
-    // AUTH LOGIN
-    $write('AUTH LOGIN');
-    $read();
-    $write(base64_encode($smtpUser));
-    $read();
-    $write(base64_encode($smtpPass));
-    $r = $read();
-    if (substr($r, 0, 3) !== '235') {
-        error_log('SMTP: AUTH fehlgeschlagen: ' . trim($r));
-        fclose($sock);
-        return false;
-    }
-
-    // Absender / Empfaenger
-    $write('MAIL FROM:<' . $smtpUser . '>');
-    $read();
-    $write('RCPT TO:<' . $toEmail . '>');
-    $r = $read();
-    if (substr($r, 0, 3) !== '250' && substr($r, 0, 3) !== '251') {
-        error_log('SMTP: RCPT abgelehnt: ' . trim($r));
-        fclose($sock);
-        return false;
-    }
-
-    $write('DATA');
-    $read();
-
-    $msgId   = '<' . time() . '.' . mt_rand(1000, 9999) . '@gruenekombuese.de>';
-    $dateStr = date('r');
-
-    $msg  = 'From: ' . APP_NAME . ' <' . $smtpUser . ">\r\n";
-    $msg .= 'To: '   . $toName  . ' <' . $toEmail  . ">\r\n";
-    $msg .= 'Subject: ' . $subject . "\r\n";
-    $msg .= 'Date: '    . $dateStr . "\r\n";
-    $msg .= 'Message-ID: ' . $msgId . "\r\n";
-    $msg .= "MIME-Version: 1.0\r\n";
-    $msg .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $msg .= "Content-Transfer-Encoding: 8bit\r\n";
-    $msg .= "\r\n";
-    $msg .= $body;
-    $msg .= "\r\n.";
-
-    $write($msg);
-    $r = $read();
-
-    $write('QUIT');
-    fclose($sock);
-
-    if (substr($r, 0, 3) !== '250') {
-        error_log('SMTP: DATA-Ende fehlgeschlagen: ' . trim($r));
+    if ($httpCode !== 201) {
+        error_log('brevoSend HTTP ' . $httpCode . ': ' . $result);
         return false;
     }
     return true;
@@ -256,15 +134,15 @@ function monatOptionen(string $selected = ''): string
 {
     $html  = '';
     $jetzt = new DateTime();
-    $deutschen = [
-        'January'    => 'Januar',    'February' => 'Februar',  'March'     => 'Maerz',
-        'April'      => 'April',     'May'      => 'Mai',      'June'      => 'Juni',
-        'July'       => 'Juli',      'August'   => 'August',   'September' => 'September',
-        'October'    => 'Oktober',   'November' => 'November', 'December'  => 'Dezember',
+    $de    = [
+        'January'   => 'Januar',   'February' => 'Februar',  'March'    => 'Maerz',
+        'April'     => 'April',    'May'      => 'Mai',      'June'     => 'Juni',
+        'July'      => 'Juli',     'August'   => 'August',   'September'=> 'September',
+        'October'   => 'Oktober',  'November' => 'November', 'December' => 'Dezember',
     ];
     for ($i = 0; $i < 120; $i++) {
         $val   = $jetzt->format('Y-m');
-        $label = strtr($jetzt->format('F Y'), $deutschen);
+        $label = strtr($jetzt->format('F Y'), $de);
         $sel   = ($val === $selected) ? ' selected' : '';
         $html .= '<option value="' . h($val) . '"' . $sel . '>' . h($label) . '</option>';
         $jetzt->modify('-1 month');

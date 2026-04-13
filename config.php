@@ -10,8 +10,8 @@ define('DB_PASS', 'IHR_DATENBANKPASSWORT');    // Datenbankpasswort
 
 define('APP_NAME', 'Zeiterfassung Grüne Kombüse');
 define('TIMEZONE',  'Europe/Berlin');
-define('APP_EMAIL', 'info@gruenekombuese.de');
-define('SMTP_PASS', 'IHR_SMTP_PASSWORT');       // Passwort fuer info@gruenekombuese.de (IONOS)
-define('BASE_URL',  'https://gruenekombuese.de/zeiterfassung'); // ohne abschließenden Slash
+define('APP_EMAIL',      'info@gruenekombuese.de');
+define('BREVO_API_KEY',  'xkeysib-DEIN-KEY-HIER');  // Brevo API Key (brevo.com → Einstellungen → API Keys)
+define('BASE_URL',       'https://gruenekombuese.de/zeiterfassung'); // ohne abschließenden Slash
 
 date_default_timezone_set(TIMEZONE);
