@@ -60,7 +60,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')
                     ->execute([password_hash($neuPw, PASSWORD_BCRYPT), $id]);
-                $erfolg = 'Passwort wurde zurückgesetzt.';
+                $erfolg = 'Passwort wurde zurueckgesetzt.';
+            }
+
+        } elseif ($aktion === 'email_aendern') {
+            $id       = (int)$_POST['user_id'];
+            $neuEmail = trim($_POST['neue_email'] ?? '');
+            if (!filter_var($neuEmail, FILTER_VALIDATE_EMAIL)) {
+                $fehler[] = 'Ungueltige E-Mail-Adresse.';
+            } else {
+                try {
+                    $pdo->prepare('UPDATE users SET email = ? WHERE id = ?')
+                        ->execute([$neuEmail, $id]);
+                    $erfolg = 'E-Mail-Adresse wurde aktualisiert.';
+                } catch (PDOException $e) {
+                    $fehler[] = 'Diese E-Mail-Adresse ist bereits vergeben.';
+                }
             }
         }
     }
@@ -154,7 +169,18 @@ $alle = $pdo->query(
                 </td>
                 <td class="actions">
                     <?php if ($ma['aktiv']): ?>
-                        <!-- Passwort zurücksetzen -->
+                        <!-- E-Mail aendern -->
+                        <form method="post" action="" style="display:inline"
+                              onsubmit="return confirm('E-Mail-Adresse fuer <?= h(addslashes($ma['name'])) ?> aendern?')">
+                            <?= csrfField() ?>
+                            <input type="hidden" name="aktion" value="email_aendern">
+                            <input type="hidden" name="user_id" value="<?= (int)$ma['id'] ?>">
+                            <input type="email" name="neue_email"
+                                   placeholder="Neue E-Mail" maxlength="150"
+                                   class="input-inline">
+                            <button type="submit" class="btn btn-sm btn-secondary">E-Mail</button>
+                        </form>
+                        <!-- Passwort zuruecksetzen -->
                         <form method="post" action="" style="display:inline"
                               onsubmit="return pwReset(this, '<?= h(addslashes($ma['name'])) ?>')">
                             <?= csrfField() ?>
