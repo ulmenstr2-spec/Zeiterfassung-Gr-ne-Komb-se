@@ -2,6 +2,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/includes/db.php';
+require_once __DIR__ . '/includes/functions.php';
 
 startSecureSession();
 
@@ -63,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Anmelden – <?= h(APP_NAME) ?></title>
+    <title>Anmelden &#8211; <?= h(APP_NAME) ?></title>
     <link rel="stylesheet" href="<?= h(BASE_URL) ?>/assets/style.css">
 </head>
 <body class="login-body">
