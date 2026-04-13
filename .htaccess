@@ -1,0 +1,18 @@
+# Zeiterfassung Grüne Kombüse – .htaccess
+
+# Verzeichnis-Listings deaktivieren
+Options -Indexes
+
+# HTTPS erzwingen
+RewriteEngine On
+RewriteCond %{HTTPS} off
+RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# Zugriff auf Konfigurationsdateien und Lock-Datei sperren
+<FilesMatch "^(config\.php|install\.lock|\.env)$">
+    Order deny,allow
+    Deny from all
+</FilesMatch>
+
+# PHP-Einstellungen (nur falls php_value auf Ihrem Hosting unterstützt wird)
+# Auf IONOS Shared Hosting werden diese via ini_set() in config.php gesetzt.
