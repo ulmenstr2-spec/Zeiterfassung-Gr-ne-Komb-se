@@ -11,11 +11,22 @@ if (!empty($_SESSION['user_id'])) {
     exit;
 }
 
+// Rate Limiting: max. 10 Fehlversuche, dann 15 Minuten Sperre
+$maxVersuche  = 10;
+$sperrzeitSek = 15 * 60;
+if (empty($_SESSION['login_versuche']))     { $_SESSION['login_versuche']     = 0; }
+if (empty($_SESSION['login_gesperrt_bis'])) { $_SESSION['login_gesperrt_bis'] = 0; }
+$jetzt    = time();
+$gesperrt = $_SESSION['login_gesperrt_bis'] > $jetzt;
+
 $fehler = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $fehler = 'Ungültige Anfrage. Bitte Seite neu laden.';
+    if ($gesperrt) {
+        $restMin = (int)ceil(($_SESSION['login_gesperrt_bis'] - $jetzt) / 60);
+        $fehler  = 'Zu viele Fehlversuche. Bitte warte noch ' . $restMin . ' Minute(n).';
+    } elseif (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
+        $fehler = 'Ungueltige Anfrage. Bitte Seite neu laden.';
     } else {
         $email    = trim($_POST['email'] ?? '');
         $passwort = $_POST['passwort'] ?? '';
@@ -27,6 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->fetch();
 
         if ($user && $user['aktiv'] && password_verify($passwort, $user['password_hash'])) {
+            $_SESSION['login_versuche']     = 0;
+            $_SESSION['login_gesperrt_bis'] = 0;
             session_regenerate_id(true);
             $_SESSION['user_id']   = (int)$user['id'];
             $_SESSION['user_name'] = $user['name'];
@@ -34,7 +47,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . BASE_URL . '/dashboard.php');
             exit;
         } else {
-            $fehler = 'E-Mail oder Passwort falsch, oder Account deaktiviert.';
+            $_SESSION['login_versuche']++;
+            if ($_SESSION['login_versuche'] >= $maxVersuche) {
+                $_SESSION['login_gesperrt_bis'] = $jetzt + $sperrzeitSek;
+                $fehler = 'Zu viele Fehlversuche. Anmeldung fuer 15 Minuten gesperrt.';
+            } else {
+                $fehler = 'E-Mail oder Passwort falsch, oder Account deaktiviert.';
+            }
         }
     }
 }
@@ -58,13 +77,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="form-group">
             <label for="email">E-Mail</label>
             <input type="email" id="email" name="email" required autofocus
-                   value="<?= h($_POST['email'] ?? '') ?>">
+                   value="<?= h($_POST['email'] ?? '') ?>"
+                   <?= $gesperrt ? 'disabled' : '' ?>>
         </div>
         <div class="form-group">
             <label for="passwort">Passwort</label>
-            <input type="password" id="passwort" name="passwort" required>
+            <input type="password" id="passwort" name="passwort" required
+                   <?= $gesperrt ? 'disabled' : '' ?>>
         </div>
-        <button type="submit" class="btn btn-primary btn-block">Anmelden</button>
+        <button type="submit" class="btn btn-primary btn-block"
+                <?= $gesperrt ? 'disabled' : '' ?>>Anmelden</button>
     </form>
     <p class="login-forgot">
         <a href="<?= h(BASE_URL) ?>/passwort_vergessen.php">Passwort vergessen?</a>

@@ -10,9 +10,19 @@ $pdo    = getPDO();
 $fehler = [];
 $erfolg = '';
 
+// Edit-Modus: ?edit=ID laedt Benutzer in Bearbeitungsformular
+$editId   = isset($_GET['edit']) ? (int)$_GET['edit'] : null;
+$editUser = null;
+if ($editId) {
+    $stmt = $pdo->prepare('SELECT id, name, email, role FROM users WHERE id = ?');
+    $stmt->execute([$editId]);
+    $editUser = $stmt->fetch();
+    if (!$editUser) { $editId = null; }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $fehler[] = 'Ungültige Anfrage.';
+        $fehler[] = 'Ungueltige Anfrage.';
     } else {
         $aktion = $_POST['aktion'] ?? '';
 
@@ -22,17 +32,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $passwort = $_POST['passwort']       ?? '';
             $role     = $_POST['role']           ?? 'mitarbeiter';
 
-            if (mb_strlen($name) < 2)                          $fehler[] = 'Name zu kurz (mind. 2 Zeichen).';
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL))    $fehler[] = 'Ungültige E-Mail-Adresse.';
-            if (strlen($passwort) < 8)                         $fehler[] = 'Passwort muss mindestens 8 Zeichen haben.';
-            if (!in_array($role, ['admin','buchhaltung','mitarbeiter'], true))
-                                                               $fehler[] = 'Ungültige Rolle.';
+            if (mb_strlen($name) < 2)                                          $fehler[] = 'Name zu kurz (mind. 2 Zeichen).';
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL))                    $fehler[] = 'Ungueltige E-Mail-Adresse.';
+            if (strlen($passwort) < 8)                                         $fehler[] = 'Passwort muss mindestens 8 Zeichen haben.';
+            if (!in_array($role, ['admin','buchhaltung','mitarbeiter'], true))  $fehler[] = 'Ungueltige Rolle.';
             if (empty($fehler)) {
                 try {
-                    $pdo->prepare(
-                        'INSERT INTO users (name, email, password_hash, role) VALUES (?,?,?,?)'
-                    )->execute([$name, $email, password_hash($passwort, PASSWORD_BCRYPT), $role]);
-                    $erfolg = "Mitarbeiter „{$name}" wurde angelegt.";
+                    $pdo->prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?,?,?,?)')
+                        ->execute([$name, $email, password_hash($passwort, PASSWORD_BCRYPT), $role]);
+                    $erfolg = 'Mitarbeiter ' . $name . ' wurde angelegt.';
+                } catch (PDOException $e) {
+                    $fehler[] = 'Diese E-Mail-Adresse ist bereits vergeben.';
+                }
+            }
+
+        } elseif ($aktion === 'benutzer_bearbeiten') {
+            $id       = (int)$_POST['user_id'];
+            $name     = trim($_POST['name']  ?? '');
+            $neuEmail = trim($_POST['email'] ?? '');
+            $role     = $_POST['role']        ?? 'mitarbeiter';
+
+            if (mb_strlen($name) < 2)                                          $fehler[] = 'Name zu kurz (mind. 2 Zeichen).';
+            if (!filter_var($neuEmail, FILTER_VALIDATE_EMAIL))                 $fehler[] = 'Ungueltige E-Mail-Adresse.';
+            if (!in_array($role, ['admin','buchhaltung','mitarbeiter'], true))  $fehler[] = 'Ungueltige Rolle.';
+            if (empty($fehler)) {
+                try {
+                    $pdo->prepare('UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?')
+                        ->execute([$name, $neuEmail, $role, $id]);
+                    $erfolg = 'Daten von ' . $name . ' wurden aktualisiert.';
                 } catch (PDOException $e) {
                     $fehler[] = 'Diese E-Mail-Adresse ist bereits vergeben.';
                 }
@@ -41,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($aktion === 'deaktivieren') {
             $id = (int)$_POST['user_id'];
             if ($id === currentUserId()) {
-                $fehler[] = 'Sie können sich nicht selbst deaktivieren.';
+                $fehler[] = 'Du kannst dich nicht selbst deaktivieren.';
             } else {
                 $pdo->prepare('UPDATE users SET aktiv = 0 WHERE id = ?')->execute([$id]);
                 $erfolg = 'Mitarbeiter wurde deaktiviert.';
@@ -62,27 +89,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ->execute([password_hash($neuPw, PASSWORD_BCRYPT), $id]);
                 $erfolg = 'Passwort wurde zurueckgesetzt.';
             }
+        }
 
-        } elseif ($aktion === 'email_aendern') {
-            $id       = (int)$_POST['user_id'];
-            $neuEmail = trim($_POST['neue_email'] ?? '');
-            if (!filter_var($neuEmail, FILTER_VALIDATE_EMAIL)) {
-                $fehler[] = 'Ungueltige E-Mail-Adresse.';
-            } else {
-                try {
-                    $pdo->prepare('UPDATE users SET email = ? WHERE id = ?')
-                        ->execute([$neuEmail, $id]);
-                    $erfolg = 'E-Mail-Adresse wurde aktualisiert.';
-                } catch (PDOException $e) {
-                    $fehler[] = 'Diese E-Mail-Adresse ist bereits vergeben.';
-                }
-            }
+        if ($erfolg && empty($fehler)) {
+            header('Location: ' . BASE_URL . '/admin_mitarbeiter.php?erfolg=' . urlencode($erfolg));
+            exit;
         }
     }
 }
 
+if (!$erfolg && !empty($_GET['erfolg'])) {
+    $erfolg = $_GET['erfolg'];
+}
+
 $alle = $pdo->query(
-    'SELECT id, name, email, role, aktiv, created_at FROM users ORDER BY aktiv DESC, name ASC'
+    'SELECT id, name, email, role, aktiv FROM users ORDER BY aktiv DESC, name ASC'
 )->fetchAll();
 ?>
 <!DOCTYPE html>
@@ -107,6 +128,42 @@ $alle = $pdo->query(
         <div class="alert alert-success"><?= h($erfolg) ?></div>
     <?php endif; ?>
 
+    <?php if ($editUser): ?>
+    <!-- Mitarbeiter bearbeiten -->
+    <div class="card">
+        <h3>Mitarbeiter bearbeiten: <?= h($editUser['name']) ?></h3>
+        <form method="post" action="">
+            <?= csrfField() ?>
+            <input type="hidden" name="aktion"   value="benutzer_bearbeiten">
+            <input type="hidden" name="user_id"  value="<?= (int)$editUser['id'] ?>">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" name="name" required maxlength="100"
+                           value="<?= h($editUser['name']) ?>">
+                </div>
+                <div class="form-group">
+                    <label>E-Mail</label>
+                    <input type="email" name="email" required maxlength="150"
+                           value="<?= h($editUser['email']) ?>">
+                </div>
+                <div class="form-group">
+                    <label>Rolle</label>
+                    <select name="role">
+                        <option value="mitarbeiter" <?= $editUser['role']==='mitarbeiter'?'selected':'' ?>>Mitarbeiter</option>
+                        <option value="buchhaltung" <?= $editUser['role']==='buchhaltung'?'selected':'' ?>>Buchhaltung</option>
+                        <option value="admin"       <?= $editUser['role']==='admin'      ?'selected':'' ?>>Admin</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Speichern</button>
+                <a href="<?= h(BASE_URL) ?>/admin_mitarbeiter.php" class="btn btn-secondary">Abbrechen</a>
+            </div>
+        </form>
+    </div>
+    <?php endif; ?>
+
     <!-- Neuen Mitarbeiter anlegen -->
     <div class="card">
         <h3>Neuen Mitarbeiter anlegen</h3>
@@ -116,18 +173,15 @@ $alle = $pdo->query(
             <div class="form-row">
                 <div class="form-group">
                     <label>Name</label>
-                    <input type="text" name="name" required maxlength="100"
-                           placeholder="Vor- und Nachname">
+                    <input type="text" name="name" required maxlength="100" placeholder="Vor- und Nachname">
                 </div>
                 <div class="form-group">
                     <label>E-Mail</label>
-                    <input type="email" name="email" required maxlength="150"
-                           placeholder="email@beispiel.de">
+                    <input type="email" name="email" required maxlength="150" placeholder="email@beispiel.de">
                 </div>
                 <div class="form-group">
                     <label>Passwort</label>
-                    <input type="password" name="passwort" required minlength="8"
-                           placeholder="mind. 8 Zeichen">
+                    <input type="password" name="passwort" required minlength="8" placeholder="mind. 8 Zeichen">
                 </div>
                 <div class="form-group">
                     <label>Rolle</label>
@@ -147,11 +201,7 @@ $alle = $pdo->query(
     <table class="data-table">
         <thead>
             <tr>
-                <th>Name</th>
-                <th>E-Mail</th>
-                <th>Rolle</th>
-                <th>Status</th>
-                <th>Aktionen</th>
+                <th>Name</th><th>E-Mail</th><th>Rolle</th><th>Status</th><th>Aktionen</th>
             </tr>
         </thead>
         <tbody>
@@ -168,35 +218,27 @@ $alle = $pdo->query(
                     <?php endif; ?>
                 </td>
                 <td class="actions">
+                    <!-- Bearbeiten (Name, E-Mail, Rolle) -->
+                    <a href="<?= h(BASE_URL) ?>/admin_mitarbeiter.php?edit=<?= (int)$ma['id'] ?>"
+                       class="btn btn-sm btn-secondary">Bearbeiten</a>
+
                     <?php if ($ma['aktiv']): ?>
-                        <!-- E-Mail aendern -->
-                        <form method="post" action="" style="display:inline"
-                              onsubmit="return confirm('E-Mail-Adresse fuer <?= h(addslashes($ma['name'])) ?> aendern?')">
-                            <?= csrfField() ?>
-                            <input type="hidden" name="aktion" value="email_aendern">
-                            <input type="hidden" name="user_id" value="<?= (int)$ma['id'] ?>">
-                            <input type="email" name="neue_email"
-                                   placeholder="Neue E-Mail" maxlength="150"
-                                   class="input-inline">
-                            <button type="submit" class="btn btn-sm btn-secondary">E-Mail</button>
-                        </form>
                         <!-- Passwort zuruecksetzen -->
                         <form method="post" action="" style="display:inline"
                               onsubmit="return pwReset(this, '<?= h(addslashes($ma['name'])) ?>')">
                             <?= csrfField() ?>
-                            <input type="hidden" name="aktion" value="passwort_reset">
-                            <input type="hidden" name="user_id" value="<?= (int)$ma['id'] ?>">
+                            <input type="hidden" name="aktion"   value="passwort_reset">
+                            <input type="hidden" name="user_id"  value="<?= (int)$ma['id'] ?>">
                             <input type="password" name="neues_passwort"
-                                   placeholder="Neues Passwort" minlength="8"
-                                   class="input-inline">
+                                   placeholder="Neues Passwort" minlength="8" class="input-inline">
                             <button type="submit" class="btn btn-sm btn-secondary">PW setzen</button>
                         </form>
-                        <!-- Deaktivieren (nicht sich selbst) -->
+                        <!-- Deaktivieren -->
                         <?php if ((int)$ma['id'] !== currentUserId()): ?>
                         <form method="post" action="" style="display:inline"
                               onsubmit="return confirm('<?= h(addslashes($ma['name'])) ?> wirklich deaktivieren?')">
                             <?= csrfField() ?>
-                            <input type="hidden" name="aktion" value="deaktivieren">
+                            <input type="hidden" name="aktion"  value="deaktivieren">
                             <input type="hidden" name="user_id" value="<?= (int)$ma['id'] ?>">
                             <button type="submit" class="btn btn-sm btn-danger">Deaktivieren</button>
                         </form>
@@ -204,7 +246,7 @@ $alle = $pdo->query(
                     <?php else: ?>
                         <form method="post" action="" style="display:inline">
                             <?= csrfField() ?>
-                            <input type="hidden" name="aktion" value="aktivieren">
+                            <input type="hidden" name="aktion"  value="aktivieren">
                             <input type="hidden" name="user_id" value="<?= (int)$ma['id'] ?>">
                             <button type="submit" class="btn btn-sm btn-secondary">Reaktivieren</button>
                         </form>

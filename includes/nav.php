@@ -7,7 +7,7 @@
         <a href="<?= h(BASE_URL) ?>/dashboard.php" class="nav-brand"><?= h(APP_NAME) ?></a>
         <div class="nav-links">
             <?php if (in_array(currentRole(), ['admin', 'buchhaltung'], true)): ?>
-                <a href="<?= h(BASE_URL) ?>/admin_uebersicht.php">Übersicht</a>
+                <a href="<?= h(BASE_URL) ?>/admin_uebersicht.php">&#220;bersicht</a>
                 <a href="<?= h(BASE_URL) ?>/admin_export.php">CSV-Export</a>
             <?php endif; ?>
             <?php if (currentRole() === 'admin'): ?>
@@ -19,6 +19,7 @@
             <?php if (currentRole() === 'mitarbeiter'): ?>
                 <a href="<?= h(BASE_URL) ?>/meine_schichten.php">Meine Schichten</a>
             <?php endif; ?>
+            <a href="<?= h(BASE_URL) ?>/passwort_aendern.php">Passwort &#228;ndern</a>
             <span class="nav-user"><?= h(currentUserName()) ?> <span class="nav-role">(<?= h(currentRole()) ?>)</span></span>
             <a href="<?= h(BASE_URL) ?>/logout.php" class="btn-logout">Abmelden</a>
         </div>

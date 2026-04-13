@@ -33,7 +33,24 @@ if (isset($_GET['download'])) {
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
 
-    $filename = 'zeiterfassung_' . $monat . '.csv';
+    if ($userId_filter > 0) {
+        $nameStmt = $pdo->prepare('SELECT name FROM users WHERE id = ?');
+        $nameStmt->execute([$userId_filter]);
+        $maName   = (string)$nameStmt->fetchColumn();
+        $namePart = str_replace(
+            ['ae', 'oe', 'ue', 'ss', 'a', 'e', 'i', 'o', 'u', ' '],
+            ['ae', 'oe', 'ue', 'ss', 'a', 'e', 'i', 'o', 'u', '_'],
+            strtolower(str_replace(
+                ["\xc3\xa4","\xc3\xb6","\xc3\xbc","\xc3\x84","\xc3\x96","\xc3\x9c","\xc3\x9f",' '],
+                ['ae',      'oe',      'ue',      'Ae',      'Oe',      'Ue',      'ss',     '_'],
+                $maName
+            ))
+        );
+        $namePart = preg_replace('/[^a-z0-9_-]/', '', $namePart);
+        $filename = 'zeiterfassung_' . $namePart . '_' . $monat . '.csv';
+    } else {
+        $filename = 'zeiterfassung_' . $monat . '.csv';
+    }
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: no-store');
