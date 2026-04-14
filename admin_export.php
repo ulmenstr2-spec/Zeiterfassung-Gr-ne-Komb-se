@@ -69,8 +69,10 @@ if (isset($_GET['download'])) {
 
     fputcsv($out, ['Mitarbeiter','Datum','Beginn','Ende','Pause (Min)','Netto-Stunden','Notiz'], ';');
 
+    $gesamtNettoCsv = 0;
     foreach ($rows as $r) {
         $netto = berechneNettoStunden($r['beginn'], $r['ende'], (int)$r['pause_minuten']);
+        $gesamtNettoCsv += $netto;
         fputcsv($out, [
             $r['mitarbeiter'],
             date('d.m.Y', strtotime($r['datum'])),
@@ -81,6 +83,7 @@ if (isset($_GET['download'])) {
             $r['notiz'] ?? '',
         ], ';');
     }
+    fputcsv($out, ['Gesamt', '', '', '', '', number_format($gesamtNettoCsv, 2, ',', '.'), ''], ';');
     fclose($out);
     exit;
 }
@@ -184,7 +187,7 @@ $periodeLabel = $lohn
                 <td><?= h(substr($r['ende'],   0, 5)) ?></td>
                 <td><?= h($r['pause_minuten']) ?> min</td>
                 <td><?= h(formatStunden($netto)) ?></td>
-                <td><?= h($r['notiz'] ?? '&#8211;') ?></td>
+                <td><?= $r['notiz'] ? h($r['notiz']) : '&ndash;' ?></td>
             </tr>
         <?php endforeach; ?>
         </tbody>
