@@ -12,13 +12,20 @@ if (!preg_match('/^\d{4}-\d{2}$/', $monat)) {
     $monat = date('Y-m');
 }
 $userId_filter = (int)($_GET['user_id'] ?? 0);
+$lohn = isset($_GET['lohn']);
+
+// Datumsbereich berechnen (einmalig, fuer Download und Vorschau)
+[$y, $m] = explode('-', $monat);
+if ($lohn) {
+    $von = "$y-$m-21";
+    $bis = date('Y-m-d', mktime(0, 0, 0, (int)$m + 1, 20, (int)$y));
+} else {
+    $von = "$y-$m-01";
+    $bis = date('Y-m-t', mktime(0, 0, 0, (int)$m, 1, (int)$y));
+}
 
 // CSV-Download
 if (isset($_GET['download'])) {
-    [$y, $m] = explode('-', $monat);
-    $von = "$y-$m-01";
-    $bis = date('Y-m-t', mktime(0, 0, 0, (int)$m, 1, (int)$y));
-
     $sql    = 'SELECT u.name AS mitarbeiter, s.datum, s.beginn, s.ende, s.pause_minuten, s.notiz
                FROM shifts s JOIN users u ON u.id = s.user_id
                WHERE s.datum BETWEEN ? AND ?';
@@ -47,16 +54,18 @@ if (isset($_GET['download'])) {
             ))
         );
         $namePart = preg_replace('/[^a-z0-9_-]/', '', $namePart);
-        $filename = 'zeiterfassung_' . $namePart . '_' . $monat . '.csv';
+        $prefix   = $lohn ? 'lohn_' : 'zeiterfassung_';
+        $filename = $prefix . $namePart . '_' . $monat . '.csv';
     } else {
-        $filename = 'zeiterfassung_' . $monat . '.csv';
+        $prefix   = $lohn ? 'lohn_alle_' : 'zeiterfassung_';
+        $filename = $prefix . $monat . '.csv';
     }
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Cache-Control: no-store');
 
     $out = fopen('php://output', 'w');
-    fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM für Excel
+    fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM fuer Excel
 
     fputcsv($out, ['Mitarbeiter','Datum','Beginn','Ende','Pause (Min)','Netto-Stunden','Notiz'], ';');
 
@@ -77,9 +86,6 @@ if (isset($_GET['download'])) {
 }
 
 // Vorschau-Daten
-[$y, $m] = explode('-', $monat);
-$von    = "$y-$m-01";
-$bis    = date('Y-m-t', mktime(0, 0, 0, (int)$m, 1, (int)$y));
 $sql    = 'SELECT u.name AS mitarbeiter, s.datum, s.beginn, s.ende, s.pause_minuten, s.notiz
            FROM shifts s JOIN users u ON u.id = s.user_id
            WHERE s.datum BETWEEN ? AND ?';
@@ -96,13 +102,17 @@ $rows = $stmt->fetchAll();
 $mitarbeiter = $pdo->query(
     'SELECT id, name FROM users WHERE aktiv = 1 ORDER BY name'
 )->fetchAll();
+
+$periodeLabel = $lohn
+    ? 'Abrechnungszeitraum: ' . date('d.m.Y', strtotime($von)) . ' &#8211; ' . date('d.m.Y', strtotime($bis))
+    : '';
 ?>
 <!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CSV-Export – <?= h(APP_NAME) ?></title>
+    <title>CSV-Export &#8211; <?= h(APP_NAME) ?></title>
     <link rel="stylesheet" href="<?= h(BASE_URL) ?>/assets/style.css">
 </head>
 <body>
@@ -132,6 +142,12 @@ $mitarbeiter = $pdo->query(
                     </select>
                 </div>
             </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="lohn" value="1" <?= $lohn ? 'checked' : '' ?>>
+                    Lohnabrechnung (21.&#8211;20. des Folgemonats)
+                </label>
+            </div>
             <div class="form-actions">
                 <button type="submit" class="btn btn-secondary">Vorschau</button>
                 <button type="submit" name="download" value="1" class="btn btn-primary">
@@ -140,6 +156,10 @@ $mitarbeiter = $pdo->query(
             </div>
         </form>
     </div>
+
+    <?php if ($periodeLabel): ?>
+        <p><strong><?= $periodeLabel ?></strong></p>
+    <?php endif; ?>
 
     <?php if (!empty($rows)): ?>
     <div class="table-wrap">
@@ -164,7 +184,7 @@ $mitarbeiter = $pdo->query(
                 <td><?= h(substr($r['ende'],   0, 5)) ?></td>
                 <td><?= h($r['pause_minuten']) ?> min</td>
                 <td><?= h(formatStunden($netto)) ?></td>
-                <td><?= h($r['notiz'] ?? '–') ?></td>
+                <td><?= h($r['notiz'] ?? '&#8211;') ?></td>
             </tr>
         <?php endforeach; ?>
         </tbody>
@@ -177,7 +197,7 @@ $mitarbeiter = $pdo->query(
     </table>
     </div>
     <?php else: ?>
-        <p class="empty-state">Keine Daten für den gewählten Zeitraum.</p>
+        <p class="empty-state">Keine Daten f&#252;r den gew&#228;hlten Zeitraum.</p>
     <?php endif; ?>
 </main>
 </body>
