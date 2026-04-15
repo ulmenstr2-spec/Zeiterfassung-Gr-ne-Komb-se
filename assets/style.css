@@ -379,6 +379,59 @@ h3 { font-size: 1.1rem; margin-bottom: 1rem; color: #1a1a1a; }
 }
 
 /* ============================================================
+   DASHBOARD
+   ============================================================ */
+.dashboard-grid {
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.75rem;
+}
+.dashboard-card {
+    flex: 1;
+    min-width: 200px;
+}
+.dashboard-ok {
+    color: #2e7d32;
+    font-weight: 700;
+    font-size: 1.1rem;
+    margin-top: .25rem;
+}
+.dashboard-hint {
+    color: #757575;
+    margin-bottom: .85rem;
+}
+.dashboard-stunden {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #2e7d32;
+    margin: .25rem 0 .15rem;
+    line-height: 1.1;
+}
+.dashboard-sub {
+    font-size: .875rem;
+    color: #757575;
+}
+
+/* ============================================================
+   PAGINATION
+   ============================================================ */
+.pagination {
+    display: flex;
+    gap: .4rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+    align-items: center;
+}
+
+/* ============================================================
+   LOG-AKTIONEN
+   ============================================================ */
+.aktion-erstellt  { color: #2e7d32; font-weight: 600; }
+.aktion-geaendert { color: #e65100; font-weight: 600; }
+.aktion-geloescht { color: #c62828; font-weight: 600; }
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 640px) {

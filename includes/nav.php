@@ -11,6 +11,7 @@
                 <a href="<?= h(BASE_URL) ?>/admin_export.php">CSV-Export</a>
             <?php endif; ?>
             <?php if (currentRole() === 'admin'): ?>
+                <a href="<?= h(BASE_URL) ?>/admin_log.php">&#196;nderungslog</a>
                 <a href="<?= h(BASE_URL) ?>/admin_mitarbeiter.php">Mitarbeiter</a>
             <?php endif; ?>
             <?php if (currentRole() !== 'buchhaltung'): ?>

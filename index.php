@@ -11,9 +11,19 @@ if (!empty($_SESSION['user_id'])) {
     exit;
 }
 
-$fehler = '';
+$fehler        = '';
+$MAX_VERSUCHE  = 5;
+$SPERRE_SEK    = 15 * 60;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// Brute-Force-Check: gesperrt?
+$gesperrtBis = (int)($_SESSION['login_gesperrt_bis'] ?? 0);
+$jetzt       = time();
+if ($gesperrtBis > $jetzt) {
+    $restMinuten = (int)ceil(($gesperrtBis - $jetzt) / 60);
+    $fehler = 'Zu viele Fehlversuche. Bitte noch ' . $restMinuten . ' Minute(n) warten.';
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fehler === '') {
     if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
         $fehler = 'Ungueltige Anfrage. Bitte Seite neu laden.';
     } else {
@@ -27,6 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = $stmt->fetch();
 
         if ($user && $user['aktiv'] && password_verify($passwort, $user['password_hash'])) {
+            $_SESSION['login_versuche']     = 0;
+            $_SESSION['login_gesperrt_bis'] = 0;
             session_regenerate_id(true);
             $_SESSION['user_id']   = (int)$user['id'];
             $_SESSION['user_name'] = $user['name'];
@@ -34,7 +46,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: ' . BASE_URL . '/dashboard.php');
             exit;
         } else {
-            $fehler = 'E-Mail oder Passwort falsch, oder Account deaktiviert.';
+            $versuche = (int)($_SESSION['login_versuche'] ?? 0) + 1;
+            if ($versuche >= $MAX_VERSUCHE) {
+                $_SESSION['login_gesperrt_bis'] = $jetzt + $SPERRE_SEK;
+                $_SESSION['login_versuche']     = 0;
+                $fehler = 'Zu viele Fehlversuche. Bitte noch ' . (int)ceil($SPERRE_SEK / 60) . ' Minute(n) warten.';
+            } else {
+                $_SESSION['login_versuche'] = $versuche;
+                $verbleibend = $MAX_VERSUCHE - $versuche;
+                $fehler = 'E-Mail oder Passwort falsch, oder Account deaktiviert.'
+                    . ' Noch ' . $verbleibend . ' Versuch(e) bis zur Sperrung.';
+            }
         }
     }
 }
