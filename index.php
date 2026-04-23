@@ -24,9 +24,7 @@ if ($gesperrtBis > $jetzt) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fehler === '') {
-    if (!verifyCsrfToken($_POST['csrf_token'] ?? '')) {
-        $fehler = 'Ungueltige Anfrage. Bitte Seite neu laden.';
-    } else {
+    {
         $email    = trim($_POST['email'] ?? '');
         $passwort = $_POST['passwort'] ?? '';
 
@@ -76,7 +74,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $fehler === '') {
         <div class="alert alert-error"><?= h($fehler) ?></div>
     <?php endif; ?>
     <form method="post" action="">
-        <?= csrfField() ?>
         <div class="form-group">
             <label for="email">E-Mail</label>
             <input type="email" id="email" name="email" required autofocus
