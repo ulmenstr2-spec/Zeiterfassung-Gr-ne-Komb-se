@@ -6,7 +6,7 @@ function startSecureSession(): void
     if (session_status() === PHP_SESSION_NONE) {
         ini_set('session.cookie_httponly', '1');
         ini_set('session.cookie_secure',   '1');
-        ini_set('session.cookie_samesite', 'Strict');
+        ini_set('session.cookie_samesite', 'Lax');
         ini_set('session.gc_maxlifetime',  '28800'); // 8 Stunden
         ini_set('session.cookie_lifetime', '28800');
         session_name('zk_sess');
