@@ -432,6 +432,32 @@ h3 { font-size: 1.1rem; margin-bottom: 1rem; color: #1a1a1a; }
 .aktion-geloescht { color: #c62828; font-weight: 600; }
 
 /* ============================================================
+   CSV-EXPORT – Lohn (prominent) vs. Detail (unscheinbar)
+   ============================================================ */
+.export-lohn {
+    border: 2px solid #2e7d32;
+    border-left-width: 6px;
+    background: #f3faf3;
+}
+.export-lohn h3 { color: #1b5e20; margin-bottom: .35rem; }
+
+.export-zeitraum {
+    margin: .75rem 0;
+    font-size: 1.05rem;
+}
+.export-zeitraum strong { color: #1b5e20; }
+
+.export-detail {
+    border: 1px solid #d0d0d0;
+    background: #fafafa;
+    margin-top: 2rem;
+    opacity: .85;
+}
+.export-detail h3 { color: #757575; font-size: 1rem; margin-bottom: .35rem; }
+
+.btn-block { width: 100%; display: block; }
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 640px) {

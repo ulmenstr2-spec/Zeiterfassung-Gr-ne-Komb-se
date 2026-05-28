@@ -6,24 +6,32 @@ require_once __DIR__ . '/includes/functions.php';
 
 requireRole('admin', 'buchhaltung');
 
-$pdo   = getPDO();
+$pdo = getPDO();
+
+// Modus: 'lohn' (Standard, fuer die Gehaltsabrechnung) oder 'detail' (Kontrolle)
+$modus = (($_GET['modus'] ?? 'lohn') === 'detail') ? 'detail' : 'lohn';
+
 $monat = $_GET['monat'] ?? date('Y-m');
 if (!preg_match('/^\d{4}-\d{2}$/', $monat)) {
     $monat = date('Y-m');
 }
 $userId_filter = (int)($_GET['user_id'] ?? 0);
-$lohn = isset($_GET['lohn']);
 
 [$y, $m] = explode('-', $monat);
-if ($lohn) {
-    $von = "$y-$m-21";
-    $bis = date('Y-m-d', mktime(0, 0, 0, (int)$m + 1, 20, (int)$y));
+if ($modus === 'lohn') {
+    // Abrechnungsmonat = Auszahlungsmonat. Zeitraum: 21. Vormonat bis 20. des gewaehlten Monats.
+    $von = date('Y-m-d', mktime(0, 0, 0, (int)$m - 1, 21, (int)$y));
+    $bis = "$y-$m-20";
 } else {
+    // Kalendermonat
     $von = "$y-$m-01";
     $bis = date('Y-m-t', mktime(0, 0, 0, (int)$m, 1, (int)$y));
 }
 
-// Alle Schichten im Zeitraum laden (fuer beide Modi verwendet)
+$vonLabel = date('d.m.Y', strtotime($von));
+$bisLabel = date('d.m.Y', strtotime($bis));
+
+// Schichten im Zeitraum laden
 $sql = 'SELECT u.name AS mitarbeiter, s.datum, s.beginn, s.ende, s.pause_minuten, s.notiz
         FROM shifts s JOIN users u ON u.id = s.user_id
         WHERE s.datum BETWEEN ? AND ?';
@@ -48,14 +56,12 @@ if (isset($_GET['download'])) {
     header('Cache-Control: no-store');
     header('Content-Type: text/csv; charset=UTF-8');
 
-    if ($lohn) {
-        header('Content-Disposition: attachment; filename="lohn_alle_' . $monat . '.csv"');
+    if ($modus === 'lohn') {
+        header('Content-Disposition: attachment; filename="Lohnabrechnung_' . $monat . '.csv"');
         $out = fopen('php://output', 'w');
         fwrite($out, "\xEF\xBB\xBF");
         fputcsv($out, ['Mitarbeiter', 'Zeitraum von', 'Zeitraum bis', 'Gesamtstunden'], ';');
 
-        $vonLabel = date('d.m.Y', strtotime($von));
-        $bisLabel = date('d.m.Y', strtotime($bis));
         foreach ($grouped as $name => $schichten) {
             $stunden = 0.0;
             foreach ($schichten as $s) {
@@ -72,7 +78,7 @@ if (isset($_GET['download'])) {
         exit;
     }
 
-    // Detailexport
+    // Detailexport (Kontrolle)
     if ($userId_filter > 0) {
         $nameStmt = $pdo->prepare('SELECT name FROM users WHERE id = ?');
         $nameStmt->execute([$userId_filter]);
@@ -82,9 +88,9 @@ if (isset($_GET['download'])) {
             ['ae',       'oe',      'ue',      'ae',      'oe',      'ue',      'ss',     '_'],
             $maName
         )));
-        $filename = 'zeiterfassung_' . $namePart . '_' . $monat . '.csv';
+        $filename = 'Einzelschichten_' . $namePart . '_' . $monat . '.csv';
     } else {
-        $filename = 'zeiterfassung_' . $monat . '.csv';
+        $filename = 'Einzelschichten_' . $monat . '.csv';
     }
     header('Content-Disposition: attachment; filename="' . $filename . '"');
 
@@ -112,7 +118,6 @@ if (isset($_GET['download'])) {
 }
 
 $mitarbeiter = $pdo->query('SELECT id, name FROM users WHERE aktiv = 1 ORDER BY name')->fetchAll();
-$periodeLabel = date('d.m.Y', strtotime($von)) . ' bis ' . date('d.m.Y', strtotime($bis));
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -127,47 +132,44 @@ $periodeLabel = date('d.m.Y', strtotime($von)) . ' bis ' . date('d.m.Y', strtoti
 <main class="container">
     <h2>CSV-Export</h2>
 
-    <div class="card">
+    <!-- ============ LOHNABRECHNUNG (Standard) ============ -->
+    <div class="card export-lohn">
+        <h3>&#128181; Lohnabrechnung f&#252;r die Gehaltsabrechnung</h3>
+        <p>Gesamtstunden pro Mitarbeiter im Lohnzeitraum (21. bis 20.). Das ist die Datei f&#252;r die Lohnabrechnung.</p>
         <form method="get" action="">
+            <input type="hidden" name="modus" value="lohn">
             <div class="form-row">
                 <div class="form-group">
-                    <label>Monat</label>
-                    <select name="monat">
+                    <label>Abrechnungsmonat (= Auszahlungsmonat)</label>
+                    <select name="monat" onchange="this.form.submit()">
                         <?= monatOptionen($monat) ?>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Mitarbeiter</label>
-                    <select name="user_id">
+                    <label>Mitarbeiter (optional)</label>
+                    <select name="user_id" onchange="this.form.submit()">
                         <option value="0">Alle Mitarbeiter</option>
                         <?php foreach ($mitarbeiter as $ma): ?>
                             <option value="<?= (int)$ma['id'] ?>"
-                                <?= ($ma['id'] == $userId_filter) ? ' selected' : '' ?>>
+                                <?= ($ma['id'] == $userId_filter && $modus === 'lohn') ? ' selected' : '' ?>>
                                 <?= h($ma['name']) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
             </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" name="lohn" value="1" <?= $lohn ? 'checked' : '' ?>>
-                    Lohnabrechnung (21.&#8211;20.) &#8211; Gesamtstunden pro Mitarbeiter
-                </label>
-            </div>
+            <p class="export-zeitraum">
+                Zeitraum: <strong><?= h($vonLabel) ?> &#8211; <?= h($bisLabel) ?></strong>
+            </p>
             <div class="form-actions">
-                <button type="submit" class="btn btn-secondary">Vorschau</button>
-                <button type="submit" name="download" value="1" class="btn btn-primary">
-                    &#8595; CSV herunterladen
+                <button type="submit" name="download" value="1" class="btn btn-primary btn-block">
+                    &#8595; Lohnabrechnung herunterladen (<?= h($vonLabel) ?> &#8211; <?= h($bisLabel) ?>)
                 </button>
             </div>
         </form>
     </div>
 
-    <p><strong>Zeitraum: <?= h($periodeLabel) ?></strong></p>
-
-    <?php if ($lohn): ?>
-
+    <?php if ($modus === 'lohn'): ?>
         <?php if (!empty($grouped)): ?>
         <div class="table-wrap">
         <table class="data-table">
@@ -207,9 +209,44 @@ $periodeLabel = date('d.m.Y', strtotime($von)) . ' bis ' . date('d.m.Y', strtoti
         <?php else: ?>
             <p class="empty-state">Keine Daten f&#252;r den gew&#228;hlten Zeitraum.</p>
         <?php endif; ?>
+    <?php endif; ?>
 
-    <?php else: ?>
+    <!-- ============ DETAILEXPORT (nur Kontrolle) ============ -->
+    <div class="card export-detail">
+        <h3>Detailexport (nur zur Kontrolle)</h3>
+        <p>Alle Einzelschichten eines Kalendermonats (1. bis Monatsende).
+           <strong>Nicht f&#252;r die Lohnabrechnung verwenden</strong> &#8211; der Lohnzeitraum (21.&#8211;20.) fehlt hier.</p>
+        <form method="get" action="">
+            <input type="hidden" name="modus" value="detail">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Kalendermonat</label>
+                    <select name="monat" onchange="this.form.submit()">
+                        <?= monatOptionen($monat) ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Mitarbeiter (optional)</label>
+                    <select name="user_id" onchange="this.form.submit()">
+                        <option value="0">Alle Mitarbeiter</option>
+                        <?php foreach ($mitarbeiter as $ma): ?>
+                            <option value="<?= (int)$ma['id'] ?>"
+                                <?= ($ma['id'] == $userId_filter && $modus === 'detail') ? ' selected' : '' ?>>
+                                <?= h($ma['name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" name="download" value="1" class="btn btn-secondary">
+                    &#8595; Einzelschichten herunterladen
+                </button>
+            </div>
+        </form>
+    </div>
 
+    <?php if ($modus === 'detail'): ?>
         <?php if (!empty($rows)): ?>
         <div class="table-wrap">
         <table class="data-table">
@@ -248,8 +285,8 @@ $periodeLabel = date('d.m.Y', strtotime($von)) . ' bis ' . date('d.m.Y', strtoti
         <?php else: ?>
             <p class="empty-state">Keine Daten f&#252;r den gew&#228;hlten Zeitraum.</p>
         <?php endif; ?>
-
     <?php endif; ?>
+
 </main>
 </body>
 </html>
