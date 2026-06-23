@@ -79,6 +79,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!preg_match('/^\d{2}:\d{2}$/', $fEnde)) {
             $fehler[] = 'Ungültige Endzeit.';
         }
+        if (empty($fehler)) {
+            $bMin = (int)substr($fBeginn, 3, 2);
+            $eMin = (int)substr($fEnde, 3, 2);
+            if ($bMin % 15 !== 0 || $eMin % 15 !== 0) {
+                $fehler[] = 'Bitte nur Zeiten in 15-Minuten-Schritten eintragen, z.B. 16:30 statt 16:34.';
+            }
+        }
         if (empty($fehler) && $fEnde <= $fBeginn) {
             $fehler[] = 'Endzeit muss nach Beginnzeit liegen.';
         }
@@ -183,11 +190,11 @@ $pageTitle = $editId ? 'Schicht bearbeiten' : 'Schicht eintragen';
         <div class="form-row">
             <div class="form-group">
                 <label for="beginn">Beginn</label>
-                <input type="time" id="beginn" name="beginn" required value="<?= h($fBeginn) ?>">
+                <input type="time" id="beginn" name="beginn" required step="900" value="<?= h($fBeginn) ?>">
             </div>
             <div class="form-group">
                 <label for="ende">Ende</label>
-                <input type="time" id="ende" name="ende" required value="<?= h($fEnde) ?>">
+                <input type="time" id="ende" name="ende" required step="900" value="<?= h($fEnde) ?>">
             </div>
         </div>
         <div class="form-group">
