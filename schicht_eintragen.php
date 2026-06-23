@@ -190,11 +190,25 @@ $pageTitle = $editId ? 'Schicht bearbeiten' : 'Schicht eintragen';
         <div class="form-row">
             <div class="form-group">
                 <label for="beginn">Beginn</label>
-                <input type="time" id="beginn" name="beginn" required step="900" value="<?= h($fBeginn) ?>">
+                <select id="beginn" name="beginn" required>
+                    <option value="">– wählen –</option>
+                    <?php for ($_h = 0; $_h < 24; $_h++): for ($_m = 0; $_m < 60; $_m += 15):
+                        $_t = sprintf('%02d:%02d', $_h, $_m);
+                    ?>
+                    <option value="<?= $_t ?>"<?= $_t === $fBeginn ? ' selected' : '' ?>><?= $_t ?></option>
+                    <?php endfor; endfor; ?>
+                </select>
             </div>
             <div class="form-group">
                 <label for="ende">Ende</label>
-                <input type="time" id="ende" name="ende" required step="900" value="<?= h($fEnde) ?>">
+                <select id="ende" name="ende" required>
+                    <option value="">– wählen –</option>
+                    <?php for ($_h = 0; $_h < 24; $_h++): for ($_m = 0; $_m < 60; $_m += 15):
+                        $_t = sprintf('%02d:%02d', $_h, $_m);
+                    ?>
+                    <option value="<?= $_t ?>"<?= $_t === $fEnde ? ' selected' : '' ?>><?= $_t ?></option>
+                    <?php endfor; endfor; ?>
+                </select>
             </div>
         </div>
         <div class="form-group">
