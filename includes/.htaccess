@@ -1,0 +1,3 @@
+# Direkten HTTP-Zugriff auf includes/ verbieten
+Order deny,allow
+Deny from all
