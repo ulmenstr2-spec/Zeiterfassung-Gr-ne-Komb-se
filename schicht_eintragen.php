@@ -55,8 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fehler[] = 'Ungültige Anfrage.';
     } else {
         $fDatum  = trim($_POST['datum']          ?? '');
-        $fBeginn = trim($_POST['beginn']         ?? '');
-        $fEnde   = trim($_POST['ende']           ?? '');
+        $_bH = $_POST['beginn_h'] ?? '';
+        $_bM = $_POST['beginn_m'] ?? '';
+        $fBeginn = ($_bH !== '' && $_bM !== '') ? sprintf('%02d:%02d', (int)$_bH, (int)$_bM) : '';
+        $_eH = $_POST['ende_h'] ?? '';
+        $_eM = $_POST['ende_m'] ?? '';
+        $fEnde = ($_eH !== '' && $_eM !== '') ? sprintf('%02d:%02d', (int)$_eH, (int)$_eM) : '';
         $fPause  = max(0, (int)($_POST['pause_minuten'] ?? 0));
         $fNotiz  = trim($_POST['notiz']          ?? '');
 
@@ -187,28 +191,48 @@ $pageTitle = $editId ? 'Schicht bearbeiten' : 'Schicht eintragen';
                    max="<?= h($heute) ?>"
                    <?= ($role === 'mitarbeiter') ? 'min="' . h($vor60) . '"' : '' ?>>
         </div>
+        <?php
+            $_selBH = $fBeginn !== '' ? substr($fBeginn, 0, 2) : '';
+            $_selBM = $fBeginn !== '' ? substr($fBeginn, 3, 2) : '';
+            $_selEH = $fEnde   !== '' ? substr($fEnde,   0, 2) : '';
+            $_selEM = $fEnde   !== '' ? substr($fEnde,   3, 2) : '';
+        ?>
         <div class="form-row">
             <div class="form-group">
-                <label for="beginn">Beginn</label>
-                <select id="beginn" name="beginn" required>
-                    <option value="">– wählen –</option>
-                    <?php for ($_h = 0; $_h < 24; $_h++): for ($_m = 0; $_m < 60; $_m += 15):
-                        $_t = sprintf('%02d:%02d', $_h, $_m);
-                    ?>
-                    <option value="<?= $_t ?>"<?= $_t === $fBeginn ? ' selected' : '' ?>><?= $_t ?></option>
-                    <?php endfor; endfor; ?>
-                </select>
+                <label>Beginn</label>
+                <div class="time-split">
+                    <select id="beginn_h" name="beginn_h" required>
+                        <option value="">HH</option>
+                        <?php for ($_h = 0; $_h < 24; $_h++): $_v = sprintf('%02d', $_h); ?>
+                        <option value="<?= $_v ?>"<?= $_v === $_selBH ? ' selected' : '' ?>><?= $_v ?></option>
+                        <?php endfor; ?>
+                    </select>
+                    <span class="time-sep">:</span>
+                    <select id="beginn_m" name="beginn_m" required>
+                        <option value="">MM</option>
+                        <?php foreach ([0,15,30,45] as $_m): $_v = sprintf('%02d', $_m); ?>
+                        <option value="<?= $_v ?>"<?= $_v === $_selBM ? ' selected' : '' ?>><?= $_v ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
             <div class="form-group">
-                <label for="ende">Ende</label>
-                <select id="ende" name="ende" required>
-                    <option value="">– wählen –</option>
-                    <?php for ($_h = 0; $_h < 24; $_h++): for ($_m = 0; $_m < 60; $_m += 15):
-                        $_t = sprintf('%02d:%02d', $_h, $_m);
-                    ?>
-                    <option value="<?= $_t ?>"<?= $_t === $fEnde ? ' selected' : '' ?>><?= $_t ?></option>
-                    <?php endfor; endfor; ?>
-                </select>
+                <label>Ende</label>
+                <div class="time-split">
+                    <select id="ende_h" name="ende_h" required>
+                        <option value="">HH</option>
+                        <?php for ($_h = 0; $_h < 24; $_h++): $_v = sprintf('%02d', $_h); ?>
+                        <option value="<?= $_v ?>"<?= $_v === $_selEH ? ' selected' : '' ?>><?= $_v ?></option>
+                        <?php endfor; ?>
+                    </select>
+                    <span class="time-sep">:</span>
+                    <select id="ende_m" name="ende_m" required>
+                        <option value="">MM</option>
+                        <?php foreach ([0,15,30,45] as $_m): $_v = sprintf('%02d', $_m); ?>
+                        <option value="<?= $_v ?>"<?= $_v === $_selEM ? ' selected' : '' ?>><?= $_v ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
         </div>
         <div class="form-group">

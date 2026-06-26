@@ -6,23 +6,23 @@
 // Netto-Arbeitszeit live berechnen (schicht_eintragen.php)
 // ----------------------------------------------------------------
 (function () {
-    var beginn  = document.getElementById('beginn');
-    var ende    = document.getElementById('ende');
+    var bH      = document.getElementById('beginn_h');
+    var bM      = document.getElementById('beginn_m');
+    var eH      = document.getElementById('ende_h');
+    var eM      = document.getElementById('ende_m');
     var pause   = document.getElementById('pause_minuten');
     var preview = document.getElementById('nettoPreview');
     var wert    = document.getElementById('nettoWert');
 
-    if (!beginn || !ende || !preview || !wert) return;
+    if (!bH || !bM || !eH || !eM || !preview || !wert) return;
 
     function updatePreview() {
-        if (!beginn.value || !ende.value) {
+        if (!bH.value || !bM.value || !eH.value || !eM.value) {
             preview.style.display = 'none';
             return;
         }
-        var bParts = beginn.value.split(':');
-        var eParts = ende.value.split(':');
-        var bMin   = parseInt(bParts[0], 10) * 60 + parseInt(bParts[1], 10);
-        var eMin   = parseInt(eParts[0], 10) * 60 + parseInt(eParts[1], 10);
+        var bMin   = parseInt(bH.value, 10) * 60 + parseInt(bM.value, 10);
+        var eMin   = parseInt(eH.value, 10) * 60 + parseInt(eM.value, 10);
         var pauseM = pause ? (parseInt(pause.value, 10) || 0) : 0;
         var nettoM = eMin - bMin - pauseM;
 
@@ -39,8 +39,10 @@
         }
     }
 
-    beginn.addEventListener('change', updatePreview);
-    ende.addEventListener('change', updatePreview);
+    bH.addEventListener('change', updatePreview);
+    bM.addEventListener('change', updatePreview);
+    eH.addEventListener('change', updatePreview);
+    eM.addEventListener('change', updatePreview);
     if (pause) { pause.addEventListener('input', updatePreview); }
     updatePreview();
 }());

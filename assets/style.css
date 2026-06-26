@@ -195,6 +195,22 @@ h3 { font-size: 1.1rem; margin-bottom: 1rem; color: #1a1a1a; }
 }
 .form-row .form-group { flex: 1; min-width: 140px; }
 
+.time-split {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+.time-split select {
+    flex: 1;
+    min-width: 0;
+}
+.time-sep {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #424242;
+    line-height: 1;
+}
+
 .form-actions {
     display: flex;
     gap: .75rem;
